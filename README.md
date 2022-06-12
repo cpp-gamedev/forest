@@ -14,11 +14,18 @@
 1. `print_to`: Prints to provided `std::FILE*` stream
 1. `format`: Obtains formatted text as a `std::string`
 1. `format_to`: fully `constexpr` code path that formats text to a provided output iterator
-1. `literal`: compile-time alternative (`consteval`) for literals
+1. `literal`: compile-time alternative for literals
 
 [example/forest-example.cpp](example/forest-example.cpp) contains some samples.
 
 ## Usage
+
+### Requirements
+
+1. CMake 3.17+
+1. C++17
+
+### Steps
 
 1. Copy [include/forest/forest.hpp](include/forest/forest.hpp) into your build tree, or
 1. Use CMake to:

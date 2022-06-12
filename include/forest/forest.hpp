@@ -1,3 +1,7 @@
+/// forest
+/// single-header library
+/// Requirements: C++17
+
 #include <cstdio>
 #include <iterator>
 #include <string>
@@ -6,7 +10,7 @@ namespace forest {
 ///
 /// \brief Interpolate escape sequences through text and write characters to out
 ///
-template <std::output_iterator<char> Out>
+template <typename Out>
 constexpr Out format_to(Out out, std::string_view const text, std::size_t capacity = std::string_view::npos);
 ///
 /// \brief Interpolate escape sequences through text
@@ -22,13 +26,18 @@ void print_to(std::FILE* out, std::string_view const text);
 void print(std::string_view const text);
 
 ///
+/// \brief Compute length of formatted string
+///
+constexpr std::size_t length(std::string_view const text);
+
+///
 /// \brief Compile-time alternative for literals
 ///
 template <std::size_t Capacity>
 struct literal {
 	char buffer[Capacity]{};
 
-	consteval literal(std::string_view const text) { format_to(buffer, text, Capacity); }
+	constexpr literal(std::string_view const text) { format_to(buffer, text, Capacity); }
 
 	constexpr std::string_view get() const { return buffer; }
 	constexpr operator std::string_view() const { return get(); }
@@ -130,7 +139,7 @@ struct scanner_t {
 		} else {
 			out_rgb.undo = false;
 		}
-		if (!token.starts_with("rgb=")) { return false; }
+		if (token.size() < 4 || token.substr(0, 4) != "rgb=") { return false; }
 		token = token.substr(4);
 		if (!to_rgb(out_rgb.t, token)) { return false; }
 		return true;
@@ -170,7 +179,7 @@ struct scanner_t {
 	}
 };
 
-template <std::output_iterator<char> Out>
+template <typename Out>
 struct pen_t {
 	Out out;
 
@@ -232,24 +241,42 @@ struct pen_t {
 		return write(style_dst(style.t));
 	}
 };
+
+struct null_writer {
+	using difference_type = std::ptrdiff_t;
+	char discard{};
+	constexpr char& operator*() { return discard; }
+	constexpr null_writer& operator++() { return *this; }
+	constexpr null_writer operator++(int) const { return *this; }
+};
+
+template <typename Out>
+constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text, std::size_t capacity = std::string_view::npos) {
+	auto scanner = scanner_t{text};
+	auto scan = token_t{};
+	auto vacant = [capacity, &out_pen] { return capacity == std::string_view::npos || out_pen.written < capacity; };
+	while (scanner.next(scan) && vacant()) {
+		switch (scan.type) {
+		case token_type::rgb: out_pen.write(scan.rgb); break;
+		case token_type::style: out_pen.write(scan.style); break;
+		default:
+		case token_type::text: out_pen.write(scan.text); break;
+		}
+	}
+	return out_pen;
+}
 } // namespace detail
 } // namespace forest
 
-template <std::output_iterator<char> Out>
+template <typename Out>
 constexpr Out forest::format_to(Out out, std::string_view const text, std::size_t capacity) {
 	auto pen = detail::pen_t<Out>{out};
-	auto scanner = detail::scanner_t{text};
-	auto scan = detail::token_t{};
-	auto vacant = [capacity, &pen] { return capacity == std::string_view::npos || pen.written < capacity; };
-	while (scanner.next(scan) && vacant()) {
-		switch (scan.type) {
-		case detail::token_type::rgb: pen.write(scan.rgb); break;
-		case detail::token_type::style: pen.write(scan.style); break;
-		default:
-		case detail::token_type::text: pen.write(scan.text); break;
-		}
-	}
-	return pen.out;
+	return detail::write(pen, text, capacity).out;
+}
+
+constexpr std::size_t forest::length(std::string_view const text) {
+	auto pen = detail::pen_t<detail::null_writer>{};
+	return detail::write(pen, text).written;
 }
 
 namespace forest {

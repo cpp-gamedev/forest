@@ -4,7 +4,7 @@ enable_language(CXX)
 
 set(CMAKE_DEBUG_POSTFIX "-d")
 set(CMAKE_CXX_EXTENSIONS OFF) # disable compiler extensions
-set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 if("${CMAKE_BUILD_TYPE}" STREQUAL "")
@@ -17,7 +17,7 @@ set(build_version 0.1.0)
 # project parameters
 set(project_name forest)
 set(${project_name}_version ${build_version})
-set(cxx_standard cxx_std_20)
+set(cxx_standard cxx_std_17)
 
 project(${project_name} VERSION "${${project_name}_version}")
 set(${project_name}_soversion ${PROJECT_VERSION_MAJOR})
