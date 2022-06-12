@@ -22,12 +22,14 @@
 
 ### Requirements
 
-1. CMake 3.17+
 1. C++17
+1. CMake 3.17+ [optional]
 
 ### Steps
 
 1. Copy [include/forest/forest.hpp](include/forest/forest.hpp) into your build tree, or
-1. Use CMake to:
-  1. `add_subdirectory(path/to/forest)` or `find_package(forest)` (if installed and visible to CMake)
-  1. `target_link_libraries(your_project PRIVATE forest::forest)`
+1. Use CMake:
+   1. Import `forest`
+      1. Add `forest` to build tree via `add_subdirectory(path/to/forest)`, or 
+      1. Locate `forest` via `find_package(forest)` (must be installed to a path in `CMAKE_INSTALL_PREFIX`)
+   1. Link to `forest` via `target_link_libraries(your_project PRIVATE forest::forest)` (use `PUBLIC` instead to propagate include paths to all dependencies)
