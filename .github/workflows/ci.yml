@@ -1,0 +1,36 @@
+name: ci
+on:
+  push:
+    tags-ignore: v*.*
+    branches:
+      - '*'
+  pull_request:
+    branches:
+      - '*'
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: init
+        run: sudo apt install -yqq ninja-build g++-11
+      - name: configure clang
+        run: cp cmake/CMakePresets.json . && cmake -S . --preset=nc-release -B clang
+      - name: configure gcc
+        run: cmake -S . -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER=g++-11 -B gcc
+      - name: build clang
+        run: cmake --build clang
+      - name: build gcc
+        run: cmake --build gcc
+      - name: test
+        run: cd clang && ctest
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: configure
+        run: cp cmake/CMakePresets.json . && cmake -S . --preset=vs22 -B build
+      - name: build
+        run: cmake --build build --config=Release
+      - name: test
+        run: cd build && ctest -C Release
