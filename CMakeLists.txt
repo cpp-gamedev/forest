@@ -12,7 +12,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
 endif()
 
 # build version
-set(build_version 0.1.0)
+set(build_version 0.2.0)
 
 # project parameters
 set(project_name forest)
@@ -54,7 +54,6 @@ if(is_root_project)
 endif()
 
 # library
-# add_subdirectory(forest)
 add_library(${PROJECT_NAME} INTERFACE)
 add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
 target_sources(${PROJECT_NAME} PRIVATE include/forest/forest.hpp)

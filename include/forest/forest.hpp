@@ -41,37 +41,37 @@ struct literal {
 
 	constexpr std::string_view get() const { return buffer; }
 	constexpr operator std::string_view() const { return get(); }
+
+	template <typename OstreamT>
+	friend constexpr OstreamT& operator<<(OstreamT& out, literal const& l) {
+		return out << l.get();
+	}
 };
 
 namespace detail {
-using u8 = unsigned char;
-
-enum class style_type : u8 { reset, bold, italic, underline, dim, blink, invert, strike, clear, count_ };
+enum class style_t : std::uint8_t { reset, bold, italic, underline, dim, blink, invert, strike, clear, count_ };
 inline constexpr std::string_view style_src_v[] = {
 	"reset", "b", "i", "u", "dim", "blink", "invert", "strike", "clear",
 };
-static_assert(std::size(style_src_v) == static_cast<std::size_t>(style_type::count_));
+static_assert(std::size(style_src_v) == static_cast<std::size_t>(style_t::count_));
 
-template <typename T>
-struct attribute_t {
-	T t{};
-	bool undo{};
+enum class rgb_type : std::uint8_t { foreground, background };
+struct rgb_t {
+	std::uint8_t value{};
+	rgb_type type{rgb_type::foreground};
 };
 
-using style_t = attribute_t<style_type>;
-using rgb_t = attribute_t<u8>;
-
-constexpr rgb_t make_rgb(float r, float g, float b) {
+constexpr std::uint8_t make_rgb(float r, float g, float b) {
 	auto const ir = static_cast<int>(r * 5.0f);
 	auto const ig = static_cast<int>(g * 5.0f);
 	auto const ib = static_cast<int>(b * 5.0f);
-	return {static_cast<u8>(36 * ir + 6 * ig + ib)};
+	return static_cast<std::uint8_t>(36 * ir + 6 * ig + ib);
 }
 
-constexpr bool to_style(style_type& out, std::string_view const str) {
-	for (std::size_t i = 0; i < static_cast<std::size_t>(style_type::count_); ++i) {
+constexpr bool to_style(style_t& out, std::string_view const str) {
+	for (std::size_t i = 0; i < static_cast<std::size_t>(style_t::count_); ++i) {
 		if (style_src_v[i] == str) {
-			out = static_cast<style_type>(i);
+			out = static_cast<style_t>(i);
 			return true;
 		}
 	}
@@ -84,22 +84,30 @@ constexpr float clamp(float const a, float const lo, float const hi) {
 	return a;
 }
 
-constexpr bool to_rgb(u8& out, std::string_view const str) {
+constexpr bool to_rgb(rgb_t& out, std::string_view const str) {
 	if (str.size() != 3) { return false; }
 	auto const r = clamp(static_cast<float>(str[0] - '0') / 5.0f, 0.0f, 1.0f);
 	auto const g = clamp(static_cast<float>(str[1] - '0') / 5.0f, 0.0f, 1.0f);
 	auto const b = clamp(static_cast<float>(str[2] - '0') / 5.0f, 0.0f, 1.0f);
-	out = make_rgb(r, g, b).t;
+	out.value = make_rgb(r, g, b);
 	return true;
 }
 
-enum class token_type : u8 { text, style, rgb };
+enum class token_type : std::uint8_t { text, style, rgb };
+enum class op_type : std::uint8_t { open, close };
+
+template <typename T>
+struct attribute_t {
+	T t{};
+	op_type op{};
+};
 
 struct token_t {
 	std::string_view text{};
 	style_t style{};
 	rgb_t rgb{};
 	token_type type{};
+	op_type op{};
 };
 
 struct scanner_t {
@@ -116,37 +124,41 @@ struct scanner_t {
 		return ret;
 	}
 
-	constexpr bool style(style_t& out_style, std::string_view token) {
+	constexpr bool style(token_t& out_token, std::string_view token) {
 		if (token.empty()) { return false; }
 		if (token.front() == '/') {
-			out_style.undo = true;
+			out_token.op = op_type::close;
 			token = token.substr(1);
 			if (token.empty()) { return false; }
 		} else {
-			out_style.undo = false;
+			out_token.op = op_type::open;
 		}
-		if (!to_style(out_style.t, token)) { return false; }
+		if (!to_style(out_token.style, token)) { return false; }
+		out_token.type = token_type::style;
 		return true;
 	}
 
-	constexpr bool rgb(rgb_t& out_rgb, std::string_view token) {
+	constexpr bool rgb(token_t& out_token, std::string_view token) {
 		if (token.empty()) { return false; }
 		if (token.front() == '/') {
-			out_rgb.undo = true;
+			out_token.op = op_type::close;
 			token = token.substr(1);
 			if (token != "rgb") { return false; }
+			out_token.type = token_type::rgb;
 			return true;
 		} else {
-			out_rgb.undo = false;
+			out_token.op = op_type::open;
 		}
 		if (token.size() < 4 || token.substr(0, 4) != "rgb=") { return false; }
 		token = token.substr(4);
-		if (!to_rgb(out_rgb.t, token)) { return false; }
+		if (!to_rgb(out_token.rgb, token)) { return false; }
+		out_token.type = token_type::rgb;
 		return true;
 	}
 
 	constexpr bool next(token_t& out_token) {
 		if (text.empty()) { return false; }
+		out_token.text = {};
 		out_token.type = token_type::text;
 		auto const open = text.find('<');
 		if (open == std::string_view::npos) {
@@ -165,14 +177,8 @@ struct scanner_t {
 
 		// attribute
 		auto token = attribute(open);
-		if (style(out_token.style, token)) {
-			out_token.type = token_type::style;
-			return true;
-		}
-		if (rgb(out_token.rgb, token)) {
-			out_token.type = token_type::rgb;
-			return true;
-		}
+		if (style(out_token, token)) { return true; }
+		if (rgb(out_token, token)) { return true; }
 
 		// skip
 		return next(out_token);
@@ -189,9 +195,9 @@ struct pen_t {
 	static constexpr std::string_view style_dst_v[] = {
 		"0m", "1m", "3m", "4m", "2m", "5m", "7m", "9m", "2J",
 	};
-	static_assert(std::size(style_dst_v) == static_cast<std::size_t>(style_type::count_));
+	static_assert(std::size(style_dst_v) == static_cast<std::size_t>(style_t::count_));
 
-	static constexpr std::string_view style_dst(style_type style) { return style_dst_v[static_cast<std::size_t>(style)]; }
+	static constexpr std::string_view style_dst(style_t style) { return style_dst_v[static_cast<std::size_t>(style)]; }
 
 	static constexpr std::uint32_t max_place(std::uint32_t const a) {
 		for (std::uint32_t place = 10000; place > 1; place /= 10) {
@@ -223,19 +229,24 @@ struct pen_t {
 		return *this;
 	}
 
-	constexpr pen_t& write(rgb_t rgb) {
+	constexpr pen_t& write(attribute_t<rgb_t> rgb) {
 		write(attribute_start_v);
-		if (rgb.undo) { return write("39m"); }
-		write("38;5;");
-		write(static_cast<std::uint32_t>(rgb.t) + 16U);
+		if (rgb.t.type == rgb_type::foreground) {
+			if (rgb.op == op_type::close) { return write("39m"); }
+			write("38;5;");
+		} else {
+			if (rgb.op == op_type::close) { return write("49m"); }
+			write("48;5;");
+		}
+		write(static_cast<std::uint32_t>(rgb.t.value) + 16U);
 		return write("m");
 	}
 
-	constexpr pen_t& write(style_t style) {
-		if (style.t == style_type::clear) { write({style_type::reset}); }
+	constexpr pen_t& write(attribute_t<style_t> style) {
+		if (style.t == style_t::clear) { write({style_t::reset}); }
 		write(attribute_start_v);
-		if (style.undo) {
-			if (style.t == style_type::bold) { style.t = style_type::dim; }
+		if (style.op == op_type::close) {
+			if (style.t == style_t::bold) { style.t = style_t::dim; }
 			write("2");
 		}
 		return write(style_dst(style.t));
@@ -253,14 +264,14 @@ struct null_writer {
 template <typename Out>
 constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text, std::size_t capacity = std::string_view::npos) {
 	auto scanner = scanner_t{text};
-	auto scan = token_t{};
+	auto token = token_t{};
 	auto vacant = [capacity, &out_pen] { return capacity == std::string_view::npos || out_pen.written < capacity; };
-	while (scanner.next(scan) && vacant()) {
-		switch (scan.type) {
-		case token_type::rgb: out_pen.write(scan.rgb); break;
-		case token_type::style: out_pen.write(scan.style); break;
+	while (scanner.next(token) && vacant()) {
+		switch (token.type) {
+		case token_type::rgb: out_pen.write({token.rgb, token.op}); break;
+		case token_type::style: out_pen.write({token.style, token.op}); break;
 		default:
-		case token_type::text: out_pen.write(scan.text); break;
+		case token_type::text: out_pen.write(token.text); break;
 		}
 	}
 	return out_pen;
@@ -290,5 +301,5 @@ inline std::string forest::format(std::string_view const text) {
 	return str;
 }
 
-inline void forest::print_to(std::FILE* out, std::string_view const text) { std::fprintf(out, "%s%s\n", format(text).c_str(), reset_v.get().data()); }
+inline void forest::print_to(std::FILE* out, std::string_view const text) { std::fprintf(out, "%s%s", format(text).c_str(), reset_v.get().data()); }
 inline void forest::print(std::string_view const text) { print_to(stdout, text); }
