@@ -344,6 +344,7 @@ inline constexpr auto clear_v = literal<8>("<clear>");
 
 inline std::string forest::format(std::string_view const text) {
 	auto str = std::string{};
+	str.reserve(length(text));
 	format_to(std::back_inserter(str), text);
 	return str;
 }
