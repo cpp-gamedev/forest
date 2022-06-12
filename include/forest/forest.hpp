@@ -6,6 +6,10 @@
 #include <iterator>
 #include <string>
 
+#if __has_include(<forest/forest_version.hpp>)
+#include <forest/forest_version.hpp>
+#endif
+
 namespace forest {
 ///
 /// \brief Interpolate escape sequences through text and write characters to out

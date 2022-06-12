@@ -5,5 +5,8 @@ constexpr auto foo = forest::literal<64>("<rgb=500><b><i>hello</b></i></rgb> wor
 
 int main() {
 	std::cout << foo << '\n';
-	forest::print("<invert>forest</invert>\n");
+	auto str = std::string("<invert>forest</invert> <dim>v");
+	str += forest::version_v;
+	str += "</dim>\n";
+	forest::print(str);
 }

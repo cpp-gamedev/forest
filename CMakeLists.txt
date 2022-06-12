@@ -12,7 +12,7 @@ if("${CMAKE_BUILD_TYPE}" STREQUAL "")
 endif()
 
 # build version
-set(build_version 0.2.0)
+set(build_version 0.3.0)
 
 # project parameters
 set(project_name forest)
@@ -63,6 +63,9 @@ target_include_directories(${PROJECT_NAME} INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>"
   "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES include/forest/forest.hpp)
+
+configure_file(cmake/forest_version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/forest/forest_version.hpp" @ONLY)
 
 # examples
 if(FOREST_BUILD_EXAMPLE)
