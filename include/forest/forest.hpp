@@ -191,6 +191,7 @@ struct scanner_t {
 	}
 
 	constexpr bool attribute(token_t& out_token, std::string_view str) {
+		out_token.op = op_type::open;
 		if (!str.empty() && str.front() == '/') {
 			out_token.op = op_type::close;
 			str = str.substr(1);
