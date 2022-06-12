@@ -111,49 +111,92 @@ struct token_t {
 };
 
 struct scanner_t {
+	struct assign_t {
+		std::string_view lhs{};
+		std::string_view rhs{};
+	};
+
 	std::string_view text{};
 
-	constexpr std::string_view attribute(std::size_t open) {
-		auto const close = text.find('>', open);
+	static constexpr bool is_space(char const ch) { return ch == ' ' || ch == '\t' || ch == '\n'; }
+
+	static constexpr std::string_view trim(std::string_view in) {
+		while (!in.empty() && is_space(in.front())) { in = in.substr(1); }
+		while (!in.empty() && is_space(in.back())) { in = in.substr(0, in.size() - 1); }
+		return in;
+	}
+
+	static constexpr bool is_foreground(std::string_view str) { return str == "rgb"; }
+	static constexpr bool is_background(std::string_view str) { return str == "bg" || str == "background"; }
+
+	static constexpr assign_t assignment(std::string_view const str) {
+		if (auto eq = str.find('='); eq != std::string_view::npos) { return {trim(str.substr(0, eq)), trim(str.substr(eq + 1))}; }
+		return {str};
+	}
+
+	constexpr std::string_view attribute_str() {
+		auto const close = text.find('>');
+		auto ret = std::string_view{};
 		if (close == std::string_view::npos) {
 			text = {};
-			return {};
+			ret = {};
+		} else {
+			ret = text.substr(1, close - 1);
+			text = text.substr(close + 1);
 		}
-		auto ret = text.substr(open + 1, close - open - 1);
-		text = text.substr(close + 1);
 		return ret;
 	}
 
-	constexpr bool style(token_t& out_token, std::string_view token) {
-		if (token.empty()) { return false; }
-		if (token.front() == '/') {
-			out_token.op = op_type::close;
-			token = token.substr(1);
-			if (token.empty()) { return false; }
-		} else {
-			out_token.op = op_type::open;
+	constexpr bool make_closing(token_t& out_token, std::string_view const str) {
+		if (out_token.op != op_type::close) { return false; }
+		if (is_background(str)) {
+			out_token.type = token_type::rgb;
+			out_token.rgb.type = rgb_type::background;
+			return true;
 		}
-		if (!to_style(out_token.style, token)) { return false; }
-		out_token.type = token_type::style;
-		return true;
+		if (is_foreground(str)) {
+			out_token.type = token_type::rgb;
+			out_token.rgb.type = rgb_type::foreground;
+			return true;
+		}
+		return false;
 	}
 
-	constexpr bool rgb(token_t& out_token, std::string_view token) {
-		if (token.empty()) { return false; }
-		if (token.front() == '/') {
-			out_token.op = op_type::close;
-			token = token.substr(1);
-			if (token != "rgb") { return false; }
+	constexpr bool make_assign(token_t& out_token, assign_t const assign) {
+		if (out_token.op != op_type::open) { return false; }
+		if (is_background(assign.lhs) && to_rgb(out_token.rgb, assign.rhs)) {
 			out_token.type = token_type::rgb;
+			out_token.rgb.type = rgb_type::background;
 			return true;
-		} else {
-			out_token.op = op_type::open;
 		}
-		if (token.size() < 4 || token.substr(0, 4) != "rgb=") { return false; }
-		token = token.substr(4);
-		if (!to_rgb(out_token.rgb, token)) { return false; }
-		out_token.type = token_type::rgb;
-		return true;
+		if (is_foreground(assign.lhs) && to_rgb(out_token.rgb, assign.rhs)) {
+			out_token.type = token_type::rgb;
+			out_token.rgb.type = rgb_type::foreground;
+			return true;
+		}
+		return false;
+	}
+
+	constexpr bool make_attribute(token_t& out_token, std::string_view const str) {
+		// try style
+		if (to_style(out_token.style, str)) {
+			out_token.type = token_type::style;
+			return true;
+		}
+
+		// try assign
+		auto const assign = assignment(str);
+		if (assign.rhs.empty()) { return make_closing(out_token, assign.lhs); }
+		return make_assign(out_token, assign);
+	}
+
+	constexpr bool attribute(token_t& out_token, std::string_view str) {
+		if (!str.empty() && str.front() == '/') {
+			out_token.op = op_type::close;
+			str = str.substr(1);
+		}
+		if (str.empty()) { return false; }
+		return make_attribute(out_token, str);
 	}
 
 	constexpr bool next(token_t& out_token) {
@@ -175,10 +218,9 @@ struct scanner_t {
 			return true;
 		}
 
-		// attribute
-		auto token = attribute(open);
-		if (style(out_token, token)) { return true; }
-		if (rgb(out_token, token)) { return true; }
+		auto str = attribute_str();
+		if (str.empty()) { return false; }
+		if (attribute(out_token, str)) { return true; }
 
 		// skip
 		return next(out_token);
