@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.17 FATAL_ERROR)
 enable_language(CXX)
 
 set(CMAKE_DEBUG_POSTFIX "-d")
+set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_CXX_EXTENSIONS OFF) # disable compiler extensions
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -21,6 +22,20 @@ set(cxx_standard cxx_std_17)
 
 project(${project_name} VERSION "${${project_name}_version}")
 set(${project_name}_soversion ${PROJECT_VERSION_MAJOR})
+set(${project_name}_version_file_in cmake/${PROJECT_NAME}_version.hpp.in)
+set(${project_name}_version_file_out ${PROJECT_NAME}_version.hpp)
+
+function(configure_version_file)
+  set(in "${CMAKE_CURRENT_SOURCE_DIR}/${${project_name}_version_file_in}")
+
+  if(EXISTS "${in}")
+    set(out "${CMAKE_CURRENT_BINARY_DIR}/include/${PROJECT_NAME}/${${project_name}_version_file_out}")
+    message(STATUS "Configuring ${out}")
+    configure_file("${in}" "${out}" @ONLY)
+    source_group(TREE "${CMAKE_CURRENT_BINARY_DIR}" FILES "${out}")
+  endif()
+endfunction()
+
 set(is_root_project OFF) # indicate if this is the top-level project
 
 if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
@@ -44,7 +59,7 @@ if(is_root_project)
     set(build_config "Multi-config")
   endif()
 
-  message(STATUS "[${CMAKE_SYSTEM_PROCESSOR}] [${PLATFORM}] [${CMAKE_GENERATOR}] [${CMAKE_CXX_COMPILER_ID}] [${build_config}]")
+  message(STATUS "[${CMAKE_SYSTEM_PROCESSOR}] [${CMAKE_SYSTEM_NAME}] [${CMAKE_GENERATOR}] [${CMAKE_CXX_COMPILER_ID}] [${build_config}]")
 endif()
 
 # compile commands
@@ -63,9 +78,10 @@ target_include_directories(${PROJECT_NAME} INTERFACE
   "$<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>"
   "$<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>"
 )
-source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES include/forest/forest.hpp)
+get_target_property(sources ${PROJECT_NAME} SOURCES)
+source_group(TREE "${CMAKE_CURRENT_SOURCE_DIR}" FILES ${sources})
 
-configure_file(cmake/forest_version.hpp.in "${CMAKE_CURRENT_BINARY_DIR}/include/forest/forest_version.hpp" @ONLY)
+configure_version_file()
 
 # examples
 if(FOREST_BUILD_EXAMPLE)
@@ -82,7 +98,7 @@ if(FOREST_INSTALL)
   include(CMakePackageConfigHelpers)
 
   # install targets
-  install(TARGETS forest EXPORT forest-targets
+  install(TARGETS ${PROJECT_NAME} EXPORT ${PROJECT_NAME}-targets
     LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
@@ -101,33 +117,33 @@ if(FOREST_INSTALL)
     FILES_MATCHING PATTERN "*.hpp"
   )
 
-  # install export
-  install(EXPORT forest-targets
-    FILE forest-targets.cmake
-    NAMESPACE forest::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/forest
+  # install and export targets
+  install(EXPORT ${PROJECT_NAME}-targets
+    FILE ${PROJECT_NAME}-targets.cmake
+    NAMESPACE ${PROJECT_NAME}::
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   )
 
-  # configure package config
+  # configure ${PROJECT_NAME}-config.cmake
   configure_package_config_file("${CMAKE_CURRENT_SOURCE_DIR}/cmake/config.cmake.in"
-    "${CMAKE_CURRENT_BINARY_DIR}/forest-config.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/forest
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake"
+    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   )
 
-  # install forest-config.cmake
-  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/forest-config.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/forest
+  # install ${PROJECT_NAME}-config.cmake
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   )
 
-  # configure forest-version.cmake
+  # configure ${PROJECT_NAME}-config-version.cmake
   write_basic_package_version_file(
-    "${CMAKE_CURRENT_BINARY_DIR}/forest-config-version.cmake"
+    "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake"
     VERSION ${build_version}
     COMPATIBILITY AnyNewerVersion
   )
 
-  # install forest-version.cmake
-  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/forest-config-version.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/forest
+  # install ${PROJECT_NAME}-config-version.cmake
+  install(FILES "${CMAKE_CURRENT_BINARY_DIR}/${PROJECT_NAME}-config-version.cmake"
+    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/${PROJECT_NAME}
   )
 endif()

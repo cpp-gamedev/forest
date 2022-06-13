@@ -65,6 +65,15 @@ struct rgb_t {
 	rgb_type type{rgb_type::foreground};
 };
 
+enum class op_type : std::uint8_t { open, close };
+template <typename T>
+struct attr_op_t {
+	T t{};
+	op_type op{};
+};
+
+enum class attr_type : std::uint8_t { style, rgb };
+
 constexpr std::uint8_t make_rgb(float r, float g, float b) {
 	auto const ir = static_cast<int>(r * 5.0f);
 	auto const ig = static_cast<int>(g * 5.0f);
@@ -88,6 +97,9 @@ constexpr float clamp(float const a, float const lo, float const hi) {
 	return a;
 }
 
+constexpr bool is_foreground(std::string_view str) { return str == "rgb"; }
+constexpr bool is_background(std::string_view str) { return str == "bg" || str == "background"; }
+
 constexpr bool to_rgb(rgb_t& out, std::string_view const str) {
 	if (str.size() != 3) { return false; }
 	auto const r = clamp(static_cast<float>(str[0] - '0') / 5.0f, 0.0f, 1.0f);
@@ -97,30 +109,46 @@ constexpr bool to_rgb(rgb_t& out, std::string_view const str) {
 	return true;
 }
 
-enum class token_type : std::uint8_t { text, style, rgb };
-enum class op_type : std::uint8_t { open, close };
+struct tokenizer_t {
+	std::string_view text{};
 
-template <typename T>
-struct attribute_t {
-	T t{};
-	op_type op{};
+	constexpr std::pair<std::size_t, std::size_t> find_attribute() const {
+		if (auto const open = text.find('<'); open != std::string_view::npos) { return {open, text.find('>', open + 1)}; }
+		return {std::string_view::npos, std::string_view::npos};
+	}
+
+	constexpr bool try_attribute(std::string_view& out, std::size_t const close) {
+		if (close != std::string_view::npos) {
+			out = text.substr(0, close + 1);
+			text = text.substr(close + 1);
+			return true;
+		}
+		return false;
+	}
+
+	constexpr bool operator()(std::string_view& out) {
+		if (text.empty()) { return false; }
+		auto const [open, close] = find_attribute();
+
+		if (open == 0 && close != std::string_view::npos) {
+			if (try_attribute(out, close)) { return true; }
+		}
+
+		if (close != std::string_view::npos) {
+			out = text.substr(0, open);
+			text = text.substr(open);
+		} else {
+			out = text;
+			text = {};
+		}
+
+		return true;
+	}
 };
 
-struct token_t {
-	std::string_view text{};
-	style_t style{};
-	rgb_t rgb{};
-	token_type type{};
-	op_type op{};
-};
-
-struct scanner_t {
-	struct assign_t {
-		std::string_view lhs{};
-		std::string_view rhs{};
-	};
-
-	std::string_view text{};
+struct key_value_t {
+	std::string_view key{};
+	std::string_view value{};
 
 	static constexpr bool is_space(char const ch) { return ch == ' ' || ch == '\t' || ch == '\n'; }
 
@@ -130,105 +158,68 @@ struct scanner_t {
 		return in;
 	}
 
-	static constexpr bool is_foreground(std::string_view str) { return str == "rgb"; }
-	static constexpr bool is_background(std::string_view str) { return str == "bg" || str == "background"; }
-
-	static constexpr assign_t assignment(std::string_view const str) {
+	static constexpr key_value_t make(std::string_view const str) {
 		if (auto eq = str.find('='); eq != std::string_view::npos) { return {trim(str.substr(0, eq)), trim(str.substr(eq + 1))}; }
 		return {str};
 	}
+};
 
-	constexpr std::string_view attribute_str() {
-		auto const close = text.find('>');
-		auto ret = std::string_view{};
-		if (close == std::string_view::npos) {
-			text = {};
-			ret = {};
-		} else {
-			ret = text.substr(1, close - 1);
-			text = text.substr(close + 1);
-		}
-		return ret;
-	}
+struct attribute_t {
+	style_t style{};
+	rgb_t rgb{};
+	attr_type type{};
+	op_type op{};
 
-	constexpr bool make_closing(token_t& out_token, std::string_view const str) {
-		if (out_token.op != op_type::close) { return false; }
-		if (is_background(str)) {
-			out_token.type = token_type::rgb;
-			out_token.rgb.type = rgb_type::background;
+	constexpr bool make_close(key_value_t const& kvp) {
+		if (op != op_type::close) { return false; }
+		if (is_background(kvp.key)) {
+			type = attr_type::rgb;
+			rgb.type = rgb_type::background;
 			return true;
 		}
-		if (is_foreground(str)) {
-			out_token.type = token_type::rgb;
-			out_token.rgb.type = rgb_type::foreground;
+		if (is_foreground(kvp.key)) {
+			type = attr_type::rgb;
+			rgb.type = rgb_type::foreground;
 			return true;
 		}
 		return false;
 	}
 
-	constexpr bool make_assign(token_t& out_token, assign_t const assign) {
-		if (out_token.op != op_type::open) { return false; }
-		if (is_background(assign.lhs) && to_rgb(out_token.rgb, assign.rhs)) {
-			out_token.type = token_type::rgb;
-			out_token.rgb.type = rgb_type::background;
+	constexpr bool make_key_value(key_value_t const& kvp) {
+		if (op != op_type::open) { return false; }
+		if (is_background(kvp.key) && to_rgb(rgb, kvp.value)) {
+			type = attr_type::rgb;
+			rgb.type = rgb_type::background;
 			return true;
 		}
-		if (is_foreground(assign.lhs) && to_rgb(out_token.rgb, assign.rhs)) {
-			out_token.type = token_type::rgb;
-			out_token.rgb.type = rgb_type::foreground;
+		if (is_foreground(kvp.key) && to_rgb(rgb, kvp.value)) {
+			type = attr_type::rgb;
+			rgb.type = rgb_type::foreground;
 			return true;
 		}
 		return false;
 	}
 
-	constexpr bool make_attribute(token_t& out_token, std::string_view const str) {
+	constexpr bool make_attribute(std::string_view const str) {
 		// try style
-		if (to_style(out_token.style, str)) {
-			out_token.type = token_type::style;
+		if (to_style(style, str)) {
+			type = attr_type::style;
 			return true;
 		}
 
 		// try assign
-		auto const assign = assignment(str);
-		if (assign.rhs.empty()) { return make_closing(out_token, assign.lhs); }
-		return make_assign(out_token, assign);
+		auto const kvp = key_value_t::make(str);
+		return kvp.value.empty() ? make_close(kvp) : make_key_value(kvp);
 	}
 
-	constexpr bool attribute(token_t& out_token, std::string_view str) {
-		out_token.op = op_type::open;
+	constexpr bool try_make(std::string_view str) {
+		op = op_type::open;
 		if (!str.empty() && str.front() == '/') {
-			out_token.op = op_type::close;
+			op = op_type::close;
 			str = str.substr(1);
 		}
 		if (str.empty()) { return false; }
-		return make_attribute(out_token, str);
-	}
-
-	constexpr bool next(token_t& out_token) {
-		if (text.empty()) { return false; }
-		out_token.text = {};
-		out_token.type = token_type::text;
-		auto const open = text.find('<');
-		if (open == std::string_view::npos) {
-			// no attributes in text
-			out_token.text = text;
-			text = {};
-			return true;
-		}
-
-		if (open > 0) {
-			// remaining text before attribute
-			out_token.text = text.substr(0, open);
-			text = text.substr(open);
-			return true;
-		}
-
-		auto str = attribute_str();
-		if (str.empty()) { return false; }
-		if (attribute(out_token, str)) { return true; }
-
-		// skip
-		return next(out_token);
+		return make_attribute(str);
 	}
 };
 
@@ -276,7 +267,7 @@ struct pen_t {
 		return *this;
 	}
 
-	constexpr pen_t& write(attribute_t<rgb_t> rgb) {
+	constexpr pen_t& write(attr_op_t<rgb_t> rgb) {
 		write(attribute_start_v);
 		if (rgb.t.type == rgb_type::foreground) {
 			if (rgb.op == op_type::close) { return write("39m"); }
@@ -289,7 +280,7 @@ struct pen_t {
 		return write("m");
 	}
 
-	constexpr pen_t& write(attribute_t<style_t> style) {
+	constexpr pen_t& write(attr_op_t<style_t> style) {
 		if (style.t == style_t::clear) { write({style_t::reset}); }
 		write(attribute_start_v);
 		if (style.op == op_type::close) {
@@ -310,17 +301,22 @@ struct null_writer {
 
 template <typename Out>
 constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text, std::size_t capacity = std::string_view::npos) {
-	auto scanner = scanner_t{text};
-	auto token = token_t{};
 	auto vacant = [capacity, &out_pen] { return capacity == std::string_view::npos || out_pen.written < capacity; };
-	while (scanner.next(token) && vacant()) {
-		switch (token.type) {
-		case token_type::rgb: out_pen.write({token.rgb, token.op}); break;
-		case token_type::style: out_pen.write({token.style, token.op}); break;
-		default:
-		case token_type::text: out_pen.write(token.text); break;
+	auto write_token = [&out_pen](std::string_view const token) -> pen_t<Out>& {
+		if (token.front() == '<' && token.back() == '>') {
+			auto attr = attribute_t{};
+			if (attr.try_make(token.substr(1, token.size() - 2))) {
+				switch (attr.type) {
+				case attr_type::rgb: return out_pen.write({attr.rgb, attr.op});
+				default: return out_pen.write({attr.style, attr.op});
+				}
+			}
 		}
-	}
+		return out_pen.write(token);
+	};
+	auto tokenizer = tokenizer_t{text};
+	auto token = std::string_view{};
+	while (vacant() && tokenizer(token)) { write_token(token); }
 	return out_pen;
 }
 } // namespace detail
