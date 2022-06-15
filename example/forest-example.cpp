@@ -33,6 +33,8 @@ int main() {
 
 	std::cout << forest::literal<70>("<rgb=150>G<reset>O</reset></rgb> <rgb=150><invert>Team!</invert></rgb>") << '\n';
 
+	std::cout << forest::format("<i><u>Formatted</u></i>") << '\n';
+
 	auto str = std::string("<invert>forest</invert> <dim>v");
 	str += forest::version_v;
 	str += "</dim>\n";
@@ -42,11 +44,11 @@ int main() {
 	// std::cout << forest::literal<24>("<clear>Goodbye..</clear>") << '\n';
 
 	std::string ft{};
-	forest::format_to(std::back_inserter(ft), "<b><rgb=155>Hello from the string</rgb>!</b>");
+	forest::format_to(std::back_inserter(ft), "<b><rgb=155>Hello from the string!</rgb></b>");
 	std::cout << ft << '\n';
 
 	with_temp_file([](std::FILE* const tf) {
-		forest::print_to(tf, "<rgb=500><b>Hello from the file!</b></rgb>");
+		forest::print_to(tf, "<rgb=505><b>Hello from the file!</b></rgb>");
 
 		// Required when printing to FILE* that is not stdout/stderr
 		// As forest::print_to leaves the file pointer at the end of the file
