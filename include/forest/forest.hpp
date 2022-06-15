@@ -39,7 +39,7 @@ constexpr std::size_t length(std::string_view const text);
 ///
 template <std::size_t Capacity>
 struct literal {
-	char buffer[Capacity]{};
+	char buffer[Capacity + 1]{};
 
 	constexpr literal(std::string_view const text) { format_to(buffer, text, Capacity); }
 
@@ -226,6 +226,7 @@ struct attribute_t {
 template <typename Out>
 struct pen_t {
 	Out out;
+	std::size_t capacity{std::string_view::npos};
 
 	std::size_t written{};
 
@@ -244,7 +245,18 @@ struct pen_t {
 		return 1;
 	}
 
+	static constexpr bool has_close(style_t const style) {
+		switch (style) {
+		case style_t::reset:
+		case style_t::clear: return false;
+		default: return true;
+		}
+	}
+
+	constexpr bool full() const { return written + 1 >= capacity; }
+
 	constexpr pen_t& write_digit(std::uint32_t const digit) {
+		if (full()) { return *this; }
 		auto const ch = static_cast<char>(digit + '0');
 		++written;
 		return write(std::string_view(&ch, 1));
@@ -252,6 +264,7 @@ struct pen_t {
 
 	constexpr pen_t& write(std::string_view const text) {
 		for (char const ch : text) {
+			if (full()) { return *this; }
 			*out++ = ch;
 			++written;
 		}
@@ -283,7 +296,7 @@ struct pen_t {
 	constexpr pen_t& write(attr_op_t<style_t> style) {
 		if (style.t == style_t::clear) { write({style_t::reset}); }
 		write(attribute_start_v);
-		if (style.op == op_type::close) {
+		if (style.op == op_type::close && has_close(style.t)) {
 			if (style.t == style_t::bold) { style.t = style_t::dim; }
 			write("2");
 		}
@@ -300,8 +313,7 @@ struct null_writer {
 };
 
 template <typename Out>
-constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text, std::size_t capacity = std::string_view::npos) {
-	auto vacant = [capacity, &out_pen] { return capacity == std::string_view::npos || out_pen.written < capacity; };
+constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text) {
 	auto write_token = [&out_pen](std::string_view const token) -> pen_t<Out>& {
 		if (token.front() == '<' && token.back() == '>') {
 			auto attr = attribute_t{};
@@ -316,7 +328,7 @@ constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text, st
 	};
 	auto tokenizer = tokenizer_t{text};
 	auto token = std::string_view{};
-	while (vacant() && tokenizer(token)) { write_token(token); }
+	while (!out_pen.full() && tokenizer(token)) { write_token(token); }
 	return out_pen;
 }
 } // namespace detail
@@ -324,8 +336,8 @@ constexpr pen_t<Out>& write(pen_t<Out>& out_pen, std::string_view const text, st
 
 template <typename Out>
 constexpr Out forest::format_to(Out out, std::string_view const text, std::size_t capacity) {
-	auto pen = detail::pen_t<Out>{out};
-	return detail::write(pen, text, capacity).out;
+	auto pen = detail::pen_t<Out>{out, capacity};
+	return detail::write(pen, text).out;
 }
 
 constexpr std::size_t forest::length(std::string_view const text) {
