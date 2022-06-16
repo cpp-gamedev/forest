@@ -256,9 +256,7 @@ struct pen_t {
 	constexpr bool full() const { return written + 1 >= capacity; }
 
 	constexpr pen_t& write_digit(std::uint32_t const digit) {
-		if (full()) { return *this; }
 		auto const ch = static_cast<char>(digit + '0');
-		++written;
 		return write(std::string_view(&ch, 1));
 	}
 
