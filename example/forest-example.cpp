@@ -1,37 +1,43 @@
 #include <forest/forest.hpp>
 #include <cstdio>
-#include <functional>
 #include <iostream>
 #include <iterator>
+#include <memory>
 
 constexpr auto foo = forest::literal<64>("<rgb=500><b><i>hello</b></i></rgb> world");
 
-void with_temp_file(std::function<void(std::FILE*)> const fn) {
+template <typename F>
+void with_temp_file(F const fn) {
 	constexpr auto tf_name = "temp.txt";
 
-	auto temp_file = std::fopen(tf_name, "w+");
+	auto const file_deleter = [](std::FILE* const handle) -> void {
+		std::fclose(handle);
+		std::remove(tf_name);
+	};
+
+	auto temp_file = std::unique_ptr<std::FILE, decltype(file_deleter)>(std::fopen(tf_name, "w+"), file_deleter);
 
 	if (temp_file == nullptr) { return; }
 
-	fn(temp_file);
-
-	std::fclose(temp_file);
-	temp_file = nullptr;
-	std::remove(tf_name);
+	fn(temp_file.get());
 }
 
 int main() {
 	std::cout << foo << '\n';
 
-	std::cout << forest::literal<71>("I <strike>copy</strike> <b>study</b> code from <u>stackoverflow.com</u>") << '\n';
+	constexpr std::string_view strike_and_underline_styles = "I <strike>copy</strike> <b>study</b> code from <u>stackoverflow.com</u>";
+	std::cout << forest::literal<strike_and_underline_styles.size()>(strike_and_underline_styles) << '\n';
 
 	// TERMINAL SUPPORT MAY VARY
-	std::cout << forest::literal<26>("<blink>Hey listen!</blink>") << '\n';
+	constexpr std::string_view blink_style = "<blink>Hey listen!</blink>";
+	std::cout << forest::literal<blink_style.size()>(blink_style) << '\n';
 
-	std::cout << forest::literal<21>("<dim>Loading...</dim>") << '\n';
+	constexpr std::string_view dim_style = "<dim>Loading...</dim>";
+	std::cout << forest::literal<dim_style.size()>(dim_style) << '\n';
 	//
 
-	std::cout << forest::literal<70>("<rgb=150>G<reset>O</reset></rgb> <rgb=150><invert>Team!</invert></rgb>") << '\n';
+	constexpr std::string_view reset_and_invert_styles = "<rgb=150>G<reset>O</reset></rgb> <rgb=150><invert>Team!</invert></rgb>";
+	std::cout << forest::literal<reset_and_invert_styles.size()>(reset_and_invert_styles) << '\n';
 
 	std::cout << forest::format("<i><u>Formatted</u></i>") << '\n';
 
