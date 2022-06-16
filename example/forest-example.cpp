@@ -10,7 +10,7 @@ template <typename F>
 void with_temp_file(F const fn) {
 	constexpr auto tf_name = "temp.txt";
 
-	auto const file_deleter = [](std::FILE* const handle) -> void {
+	auto const file_deleter = [=](std::FILE* const handle) -> void {
 		std::fclose(handle);
 		std::remove(tf_name);
 	};
