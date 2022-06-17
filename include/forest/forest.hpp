@@ -41,6 +41,7 @@ template <std::size_t Capacity>
 struct literal {
 	char buffer[Capacity + 1]{};
 
+	constexpr literal(char const* text) : literal(std::string_view(text)) {}
 	constexpr literal(std::string_view const text) { format_to(buffer, text, Capacity); }
 
 	constexpr std::string_view get() const { return buffer; }

@@ -25,18 +25,17 @@ void with_temp_file(F const fn) {
 int main() {
 	std::cout << foo << '\n';
 
-	constexpr std::string_view strike_and_underline_styles = "I <strike>copy</strike> <b>study</b> code from <u>stackoverflow.com</u>";
-	std::cout << forest::literal<strike_and_underline_styles.size()>(strike_and_underline_styles) << '\n';
+	constexpr forest::literal<64> strike_and_underline_styles = "I <strike>copy</strike> <b>study</b> code from <u>stackoverflow.com</u>";
+	std::cout << strike_and_underline_styles << '\n';
 
 	// TERMINAL SUPPORT MAY VARY
-	constexpr std::string_view blink_style = "<blink>Hey listen!</blink>";
-	std::cout << forest::literal<blink_style.size()>(blink_style) << '\n';
+	std::cout << forest::literal<32>("<blink>Hey listen!</blink>\n");
 
 	constexpr std::string_view dim_style = "<dim>Loading...</dim>";
 	std::cout << forest::literal<dim_style.size()>(dim_style) << '\n';
-	//
 
-	constexpr std::string_view reset_and_invert_styles = "<rgb=150>G<reset>O</reset></rgb> <rgb=150><invert>Team!</invert></rgb>";
+	// <reset> and <clear> don't need to be closed
+	constexpr std::string_view reset_and_invert_styles = "<rgb=150>G<reset>O</rgb> <rgb=150><invert>Team!</invert></rgb>";
 	std::cout << forest::literal<reset_and_invert_styles.size()>(reset_and_invert_styles) << '\n';
 
 	std::cout << forest::format("<i><u>Formatted</u></i>") << '\n';
@@ -47,7 +46,7 @@ int main() {
 	forest::print(str);
 
 	// Uncomment to clear everything written so far
-	// std::cout << forest::literal<24>("<clear>Goodbye..</clear>") << '\n';
+	// std::cout << forest::literal<24>("<clear>\nGoodbye...\n");
 
 	std::string ft{};
 	forest::format_to(std::back_inserter(ft), "<b><rgb=155>Hello from the string!</rgb></b>");
@@ -62,9 +61,8 @@ int main() {
 		// Can also be a call to std::fseek(tf, 0, SEEK_SET)
 		std::rewind(tf);
 
-		constexpr int BUFFER_SIZE{256};
-		char buffer[BUFFER_SIZE]{};
-		while (std::fgets(buffer, BUFFER_SIZE, tf) != nullptr) { std::cout << buffer << '\n'; }
+		char buffer[256]{};
+		while (std::fgets(buffer, std::size(buffer), tf) != nullptr) { std::cout << buffer << '\n'; }
 	});
 
 	forest::print_to(stdout, "<rgb=050><b>Hello from stdout</b></rgb>\n");
