@@ -22,45 +22,95 @@
 
 Below is a description of the markup language used by all functions exposed by the API
 
-### Open & Closed tags
+### Style
 
-Both `open` and `closed` tags behave the same the former is just a shorthand for the latter:
+A style consists of two things
 
-- Closed tags are of the form `<style>...</style>`
+- Scope
 
-- Open tags are of the form `<style>...`
+- Logic
 
-**note** **Both can be used interchangeibly within a single string**
+### Logic
 
-### Properties
+Logic depicts the operations the style will perform in order to apply the changes to the group of text
 
-Properties can be used in both open & closed tags that support them and are
+### Scope
 
-of the form:
+Together with logic, scope refers to the group of text to which the style can be applied to and how. There are 2 types of scopes
 
-- `<style=...>...`
+#### Opened
+
+Styles with an open scope can and will be used to apply styling or logic to
+
+- anything after the tag
+
+- anything leading up to the tag
+
+They are of the form `<style>...`
+
+#### Closed
+
+Styles with a closed scope can and will be used to apply styling to anything within the scope of the of the **opening** and **closing** tags. They are of the form
+
+`<style>...</style>`
+
+## Style Types
+
+There are 3 types of styles
+
+- **Hint**
+
+- **Decoration**
+
+- **Property**
+
+### Hint
+
+Refers to a set of styles that are single-use and open scoped
+
+### Decoration
+
+Refers to all closed scoped styles
+
+### Property
+
+Refers to a set of styles that parameterized over a set of specified values which can be given via the `=` syntax
 
 - `<style=...>...</style>`
 
+- `<style=...>...`
+
+**Note**
+
+**Properties with either open/closed scope can be used interchangeibly within a single group of text**
+
 #### Color Properties
 
-`R, G, B` can be any number ranging from :zero::arrow_right::five:
+Styles with color properties are denoted by an `R, G, B` in their properties column in the table below. The set of acceptable values for each color unit is then any number within the range `[0..5]`. For example red would be `<style=500>...</style>`
 
-## Style Tags
+**Note**
 
-| NAME           | TAG            | ALT. TAG | CLOSED             | OPEN               | PARAMETERS |
-| -------------- | -------------- | -------- | ------------------ | ------------------ | ---------- |
-| bold           | `<b>`          |          | :white_check_mark: | :white_check_mark: | :x:        |
-| italic         | `<i>`          |          | :white_check_mark: | :white_check_mark: | :x:        |
-| underline      | `<u>`          |          | :white_check_mark: | :white_check_mark: | :x:        |
-| dim            | `<dim>`        |          | :white_check_mark: | :white_check_mark: | :x:        |
-| blink          | `<blink>`      |          | :white_check_mark: | :white_check_mark: | :x:        |
-| invert         | `<invert>`     |          | :white_check_mark: | :white_check_mark: | :x:        |
-| strike through | `<strike>`     |          | :white_check_mark: | :white_check_mark: | :x:        |
-| RGB            | `<rgb>`        |          | :white_check_mark: | :white_check_mark: | `R, G, B`  |
-| background     | `<background>` | `<bg>`   | :white_check_mark: | :white_check_mark: | `R, G, B`  |
-| reset          | `<reset>`      |          |                    | :white_check_mark: | :x:        |
-| clear          | `<clear>`      |          |                    | :white_check_mark: | :x:        |
+**Specifying a value outside of the allowed range is not an error as all values are effectively clamped**
+
+## Styles
+
+| NAME           | TAG            | ALT. TAG | OPENING TAG        | CLOSING TAG        | PROPERTIES | TYPE   |
+| -------------- | -------------- | -------- | ------------------ | ------------------ | ---------- | ------ |
+| bold           | `<b>`          |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| italic         | `<i>`          |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| underline      | `<u>`          |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| dim            | `<dim>`        |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| blink          | `<blink>`      |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| invert         | `<invert>`     |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| strike through | `<strike>`     |          | :white_check_mark: | :white_check_mark: | :x:        | `D`    |
+| RGB            | `<rgb>`        |          | :white_check_mark: | :white_check_mark: | `R, G, B`  | `D\|P` |
+| background     | `<background>` | `<bg>`   | :white_check_mark: | :white_check_mark: | `R, G, B`  | `D\|P` |
+| reset          | `<reset>`      |          | :white_check_mark: | :x:                | :x:        | `H`    |
+| clear          | `<clear>`      |          | :white_check_mark: | :x:                | :x:        | `H`    |
+
+### Table Legend
+
+Due to there being styles that fall under 1 or more types and the type names being rather long for the table cells, a combination of the first letter of each type separated by a `|` character will be used instead where applicable
 
 ### Tag Names
 
@@ -72,7 +122,7 @@ This tag acts essentially as a way to style the **foreground color** of a string
 
 #### Clear
 
-Unlike `reset`, which removes all styling apllied to a string, is used to **clear the output** leading up to where it was last used
+Unlike `reset`, which removes all styling apllied to a string, is used to **clear the output** (whatever that may be)
 
 ## Usage
 
